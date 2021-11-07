@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github/jweny/xhttp/xtls"
+	"github.com/jweny/xhttp/xtls"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/publicsuffix"
 	"net"

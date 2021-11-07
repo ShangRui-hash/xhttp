@@ -1,4 +1,4 @@
-module github/jweny/xhttp
+module github.com/jweny/xhttp
 
 go 1.17
 

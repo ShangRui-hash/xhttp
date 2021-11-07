@@ -2,10 +2,11 @@ package xhttp
 
 import (
 	"context"
+	"github.com/jweny/xhttp/testutils"
 	"github.com/stretchr/testify/require"
-	"github/jweny/xhttp/testutils"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestNewResponse(t *testing.T) {
@@ -13,11 +14,6 @@ func TestNewResponse(t *testing.T) {
 	defer ts.Close()
 
 	options := NewDefaultClientOptions()
-	options.Debug = true
-	options.Cookies = map[string]string{
-		"key1": "id1",
-		"value1": "id2",
-	}
 	ctx := context.Background()
 
 	client, err := NewClient(options, nil)
@@ -27,8 +23,6 @@ func TestNewResponse(t *testing.T) {
 	req := &Request{
 		RawRequest: hr,
 	}
-	req.SetHeader("user-agent", "aaa")
-
 	resp, err := client.Do(ctx, req)
 	require.Nil(t, err)
 	body := resp.GetBody()
@@ -37,8 +31,8 @@ func TestNewResponse(t *testing.T) {
 	duration, err := resp.GetLatency()
 	require.Nil(t, err)
 	flag := false
-	if duration > 5 {
+	if duration > 5 *time.Second {
 		flag = true
 	}
-	require.Equal(t, flag, true)
+	require.Equal(t, flag, true, "response latency is wrong")
 }

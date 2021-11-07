@@ -2,8 +2,8 @@ package xhttp
 
 import (
 	"context"
+	"github.com/jweny/xhttp/testutils"
 	"github.com/stretchr/testify/require"
-	"github/jweny/xhttp/testutils"
 	"golang.org/x/net/publicsuffix"
 	"net/http"
 	"net/http/cookiejar"

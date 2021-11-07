@@ -1,7 +1,7 @@
 package xhttp
 
 import (
-	"github/jweny/xhttp/xtls"
+	"github.com/jweny/xhttp/xtls"
 	"golang.org/x/time/rate"
 )
 
