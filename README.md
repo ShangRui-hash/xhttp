@@ -13,34 +13,36 @@ http client for scanner
    - 失败重试
    - 代理
    - tls
-   - limiter
-
+   - limiter：qps限制
 2. request
 
    - context
    - trace
-   - Getbody：获取请求body
-   - GetRaw：获取请求报文
-
+   - getbody：获取请求body
+   - getRaw：获取请求报文
 3. response
 
-   - GetLatency：发起请求到收到响应的整个持续时间，可用于判断时间延时场景，如盲注
+   - getLatency：发起请求到收到响应的整个持续时间，可用于判断时间延时场景，如盲注
 
-   - Getbody：获取响应body
-   - GetRaw：获取响应报文
-
-4. requestMiddleware：请求发起之前，对请求的修饰。
+   - getbody：获取响应body
+   - getRaw：获取响应报文
+4. requestMiddleware：请求发起之前，对请求的修饰
    - context
-   - Method 限制策略
+   - method 限制策略
    - 启用 trace 
-   - 根据配置修改Header
+   - 根据配置修改header
    - 根据配置修改cookie
-
-5. responseMiddleware
+5. responseMiddleware：响应获取后，对响应的处理
    - 读body
    - 响应长度限制策略
+6. debug模式：debug模式下将打印请求和响应完整信息
+7. 完整的 testhttp server
 
-6. 完整的testhttp server
+## Install
+
+```
+go get github.com/jweny/xhttp
+```
 
 ## Demo
 
