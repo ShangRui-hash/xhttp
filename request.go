@@ -17,12 +17,12 @@ import (
 
 type Request struct {
 	RawRequest *http.Request
-	Error   interface{}
-	Context context.Context
+	Error      interface{}
+	Body       []byte
 
-	attempt		int
-	body		[]byte
-	raw			[]byte
+	attempt     int
+	ctx         context.Context
+	raw         []byte
 	trace       bool
 	sendAt      time.Time
 	clientTrace *clientTrace
@@ -34,10 +34,10 @@ type Request struct {
 
 // GetContext get
 func (r *Request) GetContext() context.Context {
-	if r.Context == nil {
+	if r.ctx == nil {
 		return context.Background()
 	}
-	return r.Context
+	return r.ctx
 }
 
 // GetAttempt get
@@ -63,28 +63,33 @@ func (r *Request) GetContentType() string {
 }
 
 func (r *Request) GetBody() ([]byte, error) {
-	if r.body != nil {
-		return r.body, nil
+	if r.Body != nil {
+		return r.Body, nil
+	}
+	if r.RawRequest.Body == nil {
+		return nil, nil
 	}
 	bodyBytes, err := ioutil.ReadAll(r.RawRequest.Body)
 	if err != nil {
 		return nil, err
 	}
-	// 修复 read 之后的偏移量
+	// 修复 read 后的偏移量
 	r.RawRequest.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
-	r.body = bodyBytes
-	return r.body, nil
+	r.Body = bodyBytes
+	return r.Body, nil
 }
 
 func (r *Request) GetRaw() ([]byte, error) {
 	if r.raw != nil {
 		return r.raw, nil
 	}
-	reqRaw, err := httputil.DumpRequest(r.RawRequest, true)
+	// Dump请求头
+	reqHeaderRaw, err := httputil.DumpRequest(r.RawRequest, false)
 	if err != nil {
 		return nil, err
 	}
-	r.raw = reqRaw
+	// 拼接 Body
+	r.raw = append(reqHeaderRaw, r.Body...)
 	return r.raw, nil
 }
 
@@ -149,7 +154,7 @@ func (r *Request) setSendAt() *Request {
 
 // SetContext set
 func (r *Request) SetContext(ctx context.Context) *Request {
-	r.Context = ctx
+	r.ctx = ctx
 	return r
 }
 

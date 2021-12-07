@@ -38,7 +38,7 @@ func parsePKCS12FromFile(c pkcS12Config) (*tls.Certificate, error) {
 func NewDefaultClientOptions() *ClientOptions {
 	return &ClientOptions{
 		TLSSkipVerify: true,
-		TLSMinVersion: tls.VersionSSL30, // nolint[:staticcheck]
+		TLSMinVersion: tls.VersionSSL30,
 		TLSMaxVersion: tls.VersionTLS13,
 	}
 }

@@ -1,7 +1,7 @@
 package xhttp
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -17,8 +17,8 @@ type Response struct {
 	RawResponse *http.Response
 	Body        []byte
 
-	raw			[]byte
-	receivedAt  time.Time
+	raw        []byte
+	receivedAt time.Time
 }
 
 //‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
@@ -40,11 +40,11 @@ func (r *Response) GetUrl() *url.URL {
 func (r *Response) GetLatency() (time.Duration, error) {
 	var latency time.Duration
 	if r.Request.clientTrace != nil {
-		latency =  r.Request.getTraceInfo().TotalTime
+		latency = r.Request.getTraceInfo().TotalTime
 	}
 	latency = r.receivedAt.Sub(r.Request.sendAt)
 	if latency == 0 {
-		return 0, errors.New("current http.Response latency is 0, maybe not enable trace")
+		return 0, fmt.Errorf("response latency %d, maybe not enable trace", latency)
 	}
 	return latency, nil
 }
@@ -64,7 +64,7 @@ func (r *Response) GetRaw() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// 拼接 body
+	// 拼接 Body
 	r.raw = append(respHeaderRaw, r.Body...)
 	return r.raw, nil
 }

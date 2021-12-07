@@ -19,16 +19,17 @@ var (
 	defaultRetryWaitMax = 50 * time.Millisecond
 )
 
+type checkRetry func(ctx context.Context, resp *http.Response, err error) (bool, error)
 
+// defaultRetryPolicy provides a default callback for Client.checkRetry, which
+// will retry on connection errors and server errors.
 func defaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	// do not retry on context.Canceled or context.DeadlineExceeded
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
 
-	// don't propagate other errors
-	shouldRetry, _ := baseRetryPolicy(resp, err)
-	return shouldRetry, nil
+	return baseRetryPolicy(resp, err)
 }
 
 func baseRetryPolicy(resp *http.Response, err error) (bool, error) {
@@ -65,13 +66,21 @@ func baseRetryPolicy(resp *http.Response, err error) (bool, error) {
 	// the server time to recover, as 500's are typically not permanent
 	// errors and may relate to outages on the server side. This will catch
 	// invalid response codes as well, like 0 and 999.
-	if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
+	//if resp.StatusCode == 0 || (resp.StatusCode >= 500 && resp.StatusCode != http.StatusNotImplemented) {
+	if resp.StatusCode == 0 {
 		return true, fmt.Errorf("unexpected HTTP status %s", resp.Status)
 	}
 
 	return false, nil
 }
 
+// defaultBackoff provides a default callback for Client.Backoff which
+// will perform exponential backoff based on the attempt number and limited
+// by the provided minimum and maximum durations.
+//
+// It also tries to parse Retry-After response header when a http.StatusTooManyRequests
+// (HTTP Code 429) is found in the resp parameter. Hence it will return the number of
+// seconds the server states it may be ready to process more requests from this client.
 func defaultBackoff(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
 	if resp != nil {
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {

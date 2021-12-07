@@ -39,17 +39,17 @@ const (
 
 // HTTPClientOptions http client 全局配置
 type HTTPClientOptions struct {
-	Proxy 			 string  `json:"proxy" yaml:"proxy" #:"使用的代理"`
+	Proxy 			 string  `json:"proxy" yaml:"proxy" #:"使用代理"`
 	DialTimeout         int  `json:"dial_timeout" yaml:"dial_timeout" #:"建立 tcp 连接的超时时间"`
-	ReadTimeout         int  `json:"read_timeout" yaml:"read_timeout" #:"读取 http 响应的超时时间，不可太小，否则会影响到 sql 时间盲注的判断"`
-	MaxConnsPerHost     int  `json:"max_conns_per_host" yaml:"max_conns_per_host" #:"同一 host 最大允许的连接数，可以根据目标主机性能适当增大"`
-	EnableHTTP2         bool `json:"enable_http2" yaml:"enable_http2" #:"是否启用 http2, 开启可以提升部分网站的速度，但目前不稳定有崩溃的风险"`
+	ReadTimeout         int  `json:"read_timeout" yaml:"read_timeout" #:"读取 http 响应的超时时间"`
+	MaxConnsPerHost     int  `json:"max_conns_per_host" yaml:"max_conns_per_host" #:"同一 host 最大允许的连接数"`
+	EnableHTTP2         bool `json:"enable_http2" yaml:"enable_http2" #:"是否启用 http2"`
 	IdleConnTimeout     int  `json:"-" yaml:"-"`
 	MaxIdleConns        int  `json:"-" yaml:"-"`
 	TLSHandshakeTimeout int  `json:"-" yaml:"-"`
 
 	FailRetries       int               `json:"fail_retries" yaml:"fail_retries" #:"请求失败的重试次数"`
-	MaxRedirect       int               `json:"max_redirect" yaml:"max_redirect" #:"单个请求最大允许的跳转数"`
+	MaxRedirect       int               `json:"max_redirect" yaml:"max_redirect" #:"单个请求最大跳转数"`
 	MaxRespBodySize   int64             `json:"max_resp_body_size" yaml:"max_resp_body_size" #:"最大允许的响应大小, 默认 2M"`
 	MaxQPS            rate.Limit        `json:"max_qps" yaml:"max_qps" #:"每秒最大请求数"`
 	AllowMethods      []string          `json:"allow_methods" yaml:"allow_methods" #:"允许的请求方法"`
