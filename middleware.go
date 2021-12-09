@@ -38,7 +38,7 @@ func createHTTPRequest(req *Request, c *Client) error {
 	// enable trace
 	if req.trace {
 		req.clientTrace = &clientTrace{}
-		req.Context = req.clientTrace.createContext(req.GetContext())
+		req.ctx = req.clientTrace.createContext(req.GetContext())
 	}
 	// Assign close connection option
 	req.RawRequest.Close = c.closeConnection
