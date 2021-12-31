@@ -3,6 +3,7 @@ package xhttp
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -31,6 +32,14 @@ type Request struct {
 //‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Request methods get
 //_______________________________________________________________________
+
+func (r *Request) Clone() *Request {
+	return &Request{
+		RawRequest:  r.RawRequest.Clone(r.RawRequest.Context()),
+		Error:       r.Error,
+		Body:        r.Body,
+	}
+}
 
 // GetContext get
 func (r *Request) GetContext() context.Context {
@@ -181,7 +190,19 @@ func (r *Request) SetHeaderMultiValues(headers map[string][]string) *Request {
 	return r
 }
 
+func (r *Request) SetHeaderMulti(headers map[string]string) *Request {
+	for key, value := range headers {
+		r.SetHeader(key, value)
+	}
+	return r
+}
+
 func (r *Request) SetCookie(hc *http.Cookie) *Request {
 	r.RawRequest.AddCookie(hc)
+	return r
+}
+
+func (r *Request) SetBody(body []byte) *Request {
+	r.RawRequest.Body = io.NopCloser(bytes.NewReader(body))
 	return r
 }

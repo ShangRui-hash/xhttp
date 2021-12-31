@@ -1,21 +1,12 @@
 package xhttp
 
 import (
-	"errors"
 	"fmt"
+	"github.com/thoas/go-funk"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
-
-func stringInSlice(str string, sli []string) bool {
-	for _, item := range sli {
-		if str == item {
-			return true
-		}
-	}
-	return false
-}
 
 //‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // Request Middleware(s)
@@ -24,31 +15,38 @@ func stringInSlice(str string, sli []string) bool {
 func verifyRequestMethod(req *Request, c *Client) error {
 	// req.Method in AllowMethods
 	currentMethod := req.RawRequest.Method
-	if stringInSlice(currentMethod, c.ClientOptions.AllowMethods) == false {
-		return fmt.Errorf(`"%s" method not allowed`, currentMethod)
+	if funk.Contains(c.ClientOptions.AllowMethods, currentMethod) == false {
+		return fmt.Errorf(`http method %s not allowed`, currentMethod)
+	}
+	return nil
+}
+
+func readRequestBody(req *Request, c *Client) error {
+	_, err := req.GetBody()
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
 func createHTTPRequest(req *Request, c *Client) error {
-	if req.GetContext() == nil {
-		return errors.New("request context cannot nil")
-	}
-
 	// enable trace
 	if req.trace {
 		req.clientTrace = &clientTrace{}
 		req.ctx = req.clientTrace.createContext(req.GetContext())
 	}
-	// Assign close connection option
+	// assign close connection option
 	req.RawRequest.Close = c.closeConnection
-
-	// fix header
-	req.RawRequest.Header.Set("Accept", "*/*")
-	req.RawRequest.Header.Set("Accept-Language", "en")
 
 	for key, value := range c.ClientOptions.Headers {
 		req.RawRequest.Header.Set(key, value)
+	}
+	// fix header
+	if req.RawRequest.Header.Get("Accept-Language") == "" {
+		req.RawRequest.Header.Set("Accept-Language", "en")
+	}
+	if req.RawRequest.Header.Get("Accept") == "" {
+		req.RawRequest.Header.Set("Accept", "*/*")
 	}
 	// add cookie
 	if c.ClientOptions.Cookies != nil {
@@ -60,7 +58,6 @@ func createHTTPRequest(req *Request, c *Client) error {
 		}
 	}
 	// add ctx
-
 	req.RawRequest = req.RawRequest.WithContext(req.GetContext())
 	return nil
 }
@@ -74,7 +71,6 @@ func readResponseBody(resp *Response, c *Client) error {
 	if err != nil {
 		return err
 	}
-	//resp.RawResponse.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
 	resp.Body = bodyBytes
 	defer resp.RawResponse.Body.Close()
 	return nil
@@ -82,8 +78,9 @@ func readResponseBody(resp *Response, c *Client) error {
 
 func verifyResponseBodyLength(resp *Response, c *Client) error {
 	// 检查响应长度
-	if int64(len(resp.Body)) > c.ClientOptions.MaxRespBodySize {
-		return errors.New("error reading response body: longer than default")
+	length := int64(len(resp.Body))
+	if length > c.ClientOptions.MaxRespBodySize {
+		return fmt.Errorf("response Body longer %d than limit %d", length, c.ClientOptions.MaxRespBodySize)
 	}
 	return nil
 }
@@ -121,7 +118,6 @@ func responseLogger(resp *Response, c *Client) error {
 			fmt.Sprintf("HOST   : %s\n", req.RawRequest.URL.Host) +
 			fmt.Sprintf("ResponseString:\n%s\n", respString) +
 			"------------------------------------------------------------------------------\n"
-		// todo other file to storage
 		fmt.Println(reqLog)
 	}
 	return nil

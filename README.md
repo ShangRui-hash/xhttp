@@ -23,7 +23,6 @@ http client for scanner
 3. response
 
    - getLatency：发起请求到收到响应的整个持续时间，可用于判断时间延时场景，如盲注
-
    - getbody：获取响应body
    - getRaw：获取响应报文
 4. requestMiddleware：请求发起之前，对请求的修饰
@@ -67,7 +66,6 @@ resp, err := client.Do(ctx, req)
 ## Todo
 
 - errorHook
-- others...
 
 ## Ref
 

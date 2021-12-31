@@ -177,3 +177,59 @@ func TestTransportCookie(t *testing.T) {
 	u, _ := url.Parse(ts.URL + "/transport-cookie")
 	require.Equal(t, "success5", cookieJar.Cookies(u)[0].Value, "could not transport cookie to multi client")
 }
+
+func TestRequest_Baidu(t *testing.T) {
+	options := NewDefaultClientOptions()
+	options.Debug = true
+	ctx := context.Background()
+	//设置headers
+	HEADER := map[string]string{
+		"accept": "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
+		"accept-encoding": "gzip, deflate, br",
+		"accept-language": "zh-CN,zh;q=0.9",
+		"referer": "https://item-paimai.taobao.com/pmp_item/609160317276.htm?s=pmp_detail&spm=a213x.7340941.2001.61.1aec2cb6RKlKoy",
+		"sec-fetch-mode": "cors",
+		"sec-fetch-site": "same-origin",
+		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
+		"x-requested-with": "XMLHttpRequest",
+	}
+	options.Headers = HEADER
+	// 如果要继承cookie，传入cookie jar；否则填nil。
+	cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+
+	// 创建client
+	client, _ := NewClient(options, cookieJar)
+	hr, _ := http.NewRequest("GET", "https://www.baidu.com", nil)
+	req := &Request{RawRequest: hr,}
+	resp, _ := client.Do(ctx, req)
+	println(string(resp.GetBody()))
+}
+
+func TestRequest_Gzip(t *testing.T) {
+	ts := testutils.CreateGenServer(t)
+	defer ts.Close()
+	options := NewDefaultClientOptions()
+	options.Debug = true
+	ctx := context.Background()
+	//设置headers
+	HEADER := map[string]string{
+		"accept": "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
+		//"accept-encoding": "gzip, deflate, br",
+		"accept-language": "zh-CN,zh;q=0.9",
+		"referer": "https://item-paimai.taobao.com/pmp_item/609160317276.htm?s=pmp_detail&spm=a213x.7340941.2001.61.1aec2cb6RKlKoy",
+		"sec-fetch-mode": "cors",
+		"sec-fetch-site": "same-origin",
+		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
+		"x-requested-with": "XMLHttpRequest",
+	}
+	options.Headers = HEADER
+	// 如果要继承cookie，传入cookie jar；否则填nil。
+	cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+
+	// 创建client
+	client, _ := NewClient(options, cookieJar)
+	hr, _ := http.NewRequest("GET", ts.URL + "/gzip-test", nil)
+	req := &Request{RawRequest: hr,}
+	resp, _ := client.Do(ctx, req)
+	println(string(resp.GetBody()))
+}
