@@ -46,20 +46,15 @@ go get github.com/jweny/xhttp
 ## Demo
 
 ```go
-//获取默认配置
-options := NewDefaultClientOptions()
 // 如果要继承cookie，传入cookie jar；否则填nil。
 cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-
-// 创建client
-client, err := NewClient(options, nil)
-
+ctx := context.Background()
+client, err := NewDefaultClient(cookieJar)
 // 构造请求
 hr, _ := http.NewRequest("GET", "<TARGET URL>" , nil)
 req := &Request{RawRequest: hr,}
 
 // 发起请求
-ctx := context.Background()
 resp, err := client.Do(ctx, req)
 ```
 
