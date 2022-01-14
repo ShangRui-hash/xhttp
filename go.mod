@@ -1,4 +1,4 @@
-module github.com/jweny/xhttp
+module github.com/xiecat/xhttp
 
 go 1.17
 
@@ -6,8 +6,8 @@ require (
 	github.com/kataras/golog v0.1.7
 	github.com/stretchr/testify v1.7.0
 	github.com/thoas/go-funk v0.9.1
-	golang.org/x/net v0.0.0-20211105192438-b53810dc28af
-	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
+	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d
+	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20210415151418-c5206de65a78
 )
 

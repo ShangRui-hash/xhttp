@@ -2,8 +2,8 @@ package xhttp
 
 import (
 	"context"
-	testhttp "github.com/jweny/xhttp/testutils/http"
 	"github.com/stretchr/testify/require"
+	testhttp "github.com/xiecat/xhttp/testutils/http"
 	"net/http"
 	"testing"
 )
