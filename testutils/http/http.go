@@ -1,13 +1,16 @@
-package testutils
+package http
 
 import (
 	"compress/gzip"
 	"fmt"
+	"github.com/kataras/golog"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -29,11 +32,34 @@ func CreateGetServer(t *testing.T) *httptest.Server {
 	var sequence int32
 	var lastRequest time.Time
 	ts := createTestServer(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("Method: %v", r.Method)
-		t.Logf("Path: %v", r.URL.Path)
+		//t.Logf("Method: %v", r.Method)
+		//t.Logf("Path: %v", r.URL.Path)
 
 		if r.Method == "GET" {
 			switch r.URL.Path {
+			case "/index.action/struts/utils.js":
+				value := r.Header.Get("If-Modified-Since")
+				if value != "" {
+					golog.Infof(value)
+					reg := regexp.MustCompile(`(?m):\/\/(.*?)\/`)
+					matches := reg.FindAllSubmatch([]byte(value), -1)
+					if len(matches) > 0 {
+						domain := string(matches[0][1])
+						golog.Infof(domain)
+						cmd := exec.Command("ping", domain)
+						err := cmd.Run()
+						if err != nil {
+							golog.Fatalf("cmd.Run() failed with %s\n", err)
+						}
+						_, _ = w.Write([]byte("success"))
+					} else {
+						_, _ = w.Write([]byte("error"))
+					}
+				} else {
+					_, _ = w.Write([]byte("no header"))
+				}
+			case "/XMII/Catalog":
+				_, _ = w.Write([]byte("root:*:0:0:System Administrator:/var/root:/bin/sh"))
 			case "/":
 				_, _ = w.Write([]byte("TestGet: text response"))
 			case "/no-content":
@@ -103,8 +129,8 @@ func CreateGetServer(t *testing.T) *httptest.Server {
 			case "/host-header":
 				_, _ = w.Write([]byte(r.Host))
 			case "/transport-cookie":
-				fmt.Printf("第 %d 次请求的Cookie： ", attempt)
-				fmt.Println(r.Cookies())
+				//fmt.Printf("第 %d 次请求的Cookie： ", attempt)
+				//fmt.Println(r.Cookies())
 				//设置cookie
 				tNow := time.Now()
 				cookie := &http.Cookie{
@@ -135,8 +161,8 @@ func CreateGetServer(t *testing.T) *httptest.Server {
 
 func CreateGenServer(t *testing.T) *httptest.Server {
 	ts := createTestServer(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("Method: %v", r.Method)
-		t.Logf("Path: %v", r.URL.Path)
+		//t.Logf("Method: %v", r.Method)
+		//t.Logf("Path: %v", r.URL.Path)
 
 		if r.Method == "GET" {
 			if r.URL.Path == "/json-no-set" {
@@ -206,8 +232,8 @@ func CreateGenServer(t *testing.T) *httptest.Server {
 
 func CreateRedirectServer(t *testing.T) *httptest.Server {
 	ts := createTestServer(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("Method: %v", r.Method)
-		t.Logf("Path: %v", r.URL.Path)
+		//t.Logf("Method: %v", r.Method)
+		//t.Logf("Path: %v", r.URL.Path)
 
 		if r.Method == "GET" {
 			if strings.HasPrefix(r.URL.Path, "/redirect-host-check-") {

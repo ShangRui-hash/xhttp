@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jweny/xhttp/xtls"
+	"github.com/kataras/golog"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/publicsuffix"
 	"net"
@@ -15,77 +16,79 @@ import (
 )
 
 type (
-	// requestMiddleware run before request
-	requestMiddleware func(*Request, *Client) error
-	// responseMiddleware run after receive response
-	responseMiddleware func(*Response, *Client) error
+	// RequestMiddleware run before request
+	RequestMiddleware func(*Request, *Client) error
+	// ResponseMiddleware run after receive response
+	ResponseMiddleware func(*Response, *Client) error
+	// todo 未实现
 	// errorHook after retry deal error
 	errorHook func(*Request, error)
 )
 
-
-func (o *HTTPClientOptions) verify() error {
-	if o == nil || o.Limiter == nil {
-		return errors.New("client options or limiter cannot nil")
-	}
-	return nil
-}
-
 // Client struct
 type Client struct {
 	HTTPClient    *http.Client
-	ClientOptions *HTTPClientOptions
-	// if debug == true will run responseLogger middleware
-	Debug         bool
-	// todo Error handle exp:Error interface{}
-
+	ClientOptions *ClientOptions
+	Debug         bool        // if debug == true, start responseLogger middleware
+	Error         interface{} // todo error handle exp
+	// todo dns cache
 	// Middleware
-	defaultBeforeRequest []requestMiddleware
-	extraBeforeRequest   []requestMiddleware
-	afterResponse        []responseMiddleware
+	defaultBeforeRequest []RequestMiddleware
+	extraBeforeRequest   []RequestMiddleware
+	afterResponse        []ResponseMiddleware
 	errorHooks           []errorHook
 
 	// handle
-	closeConnection		 bool
+	closeConnection bool
 }
 
-// NewClient 不跟随跳转
-func NewClient(options *HTTPClientOptions, jar *cookiejar.Jar) (*Client, error) {
-	err := options.verify()
-	if err != nil {
-		return nil, err
-	}
-	hc, err := createHttpClient(false, options, jar)
+// NewClient xhttp.Client
+func NewClient(options *ClientOptions, jar *cookiejar.Jar) (*Client, error) {
+	hc, err := createHttpClient(false, jar)
 	if err != nil {
 		return nil, err
 	}
 
-	client := createClient(hc, options)
+	client := createClient(options, hc)
 	return client, nil
 }
 
-// NewRedirectClient 跟随跳转
-func NewRedirectClient(options *HTTPClientOptions, jar *cookiejar.Jar) (*Client, error) {
-	err := options.verify()
-	if err != nil {
-		return nil, err
-	}
-	hc, err := createHttpClient(true, options, jar)
+// NewRedirectClient xhttp.Client with Redirect
+func NewRedirectClient(options *ClientOptions, jar *cookiejar.Jar) (*Client, error) {
+	hc, err := createHttpClient(false, jar)
 	if err != nil {
 		return nil, err
 	}
 
-	client := createClient(hc, options)
+	client := createClient(options, hc)
 	return client, nil
 }
 
-// NewWithHTTPClient 根据 http client 创建
-func NewWithHTTPClient(hc *http.Client, options *HTTPClientOptions) (*Client, error) {
-	err := options.verify()
+// NewDefaultClient xhttp.Client not follow redirect
+func NewDefaultClient(jar *cookiejar.Jar) (*Client, error) {
+	hc, err := createHttpClient(false, jar)
 	if err != nil {
 		return nil, err
 	}
-	return createClient(hc, options), nil
+
+	client := createClient(GetHTTPOptions(), hc)
+	return client, nil
+}
+
+// NewDefaultRedirectClient follow redirect
+func NewDefaultRedirectClient(jar *cookiejar.Jar) (*Client, error) {
+	hc, err := createHttpClient(true, jar)
+	if err != nil {
+		return nil, err
+	}
+
+	client := createClient(GetHTTPOptions(), hc)
+	return client, nil
+}
+
+// NewWithHTTPClient with http client
+func NewWithHTTPClient(options *ClientOptions, hc *http.Client) (*Client, error) {
+	return createClient(options, hc), nil
 }
 
 // Do request
@@ -93,11 +96,10 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	var (
 		resp                 *http.Response
 		shouldRetry          bool
-		err, doErr, checkErr error
+		err, doErr, retryErr error
 	)
-	err = c.verify()
-	if err != nil {
-		return nil, err
+	if c == nil {
+		return nil, errors.New("xhttp client not instantiated")
 	}
 
 	req.SetContext(ctx)
@@ -108,28 +110,27 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// user diy requestMiddleware
+	// user diy RequestMiddleware
 	for _, f := range c.extraBeforeRequest {
 		if err = f(req, c); err != nil {
 			return nil, err
 		}
 	}
 
-	// default diy requestMiddleware
+	// default diy RequestMiddleware
 	for _, f := range c.defaultBeforeRequest {
 		if err = f(req, c); err != nil {
 			return nil, err
 		}
 	}
-
 	// do request with retry
 	for i := 0; ; i++ {
 		req.attempt++
-		// 尝试请求
+
 		req.setSendAt()
 		resp, doErr = c.HTTPClient.Do(req.RawRequest)
 		// need retry
-		shouldRetry, checkErr = defaultRetryPolicy(req.GetContext(), resp, doErr)
+		shouldRetry, retryErr = defaultRetryPolicy(req.GetContext(), resp, doErr)
 		if !shouldRetry {
 			break
 		}
@@ -146,15 +147,16 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		}
 	}
 
-	if doErr == nil && checkErr == nil && !shouldRetry {
+	if doErr == nil && retryErr == nil && !shouldRetry {
 		// request success
+		golog.Debugf("request: %s %s, response: status %d content-length %d", req.GetMethod(), req.GetUrl().String(), resp.StatusCode, resp.ContentLength)
 		response := &Response{
 			Request:     req,
 			RawResponse: resp,
 		}
 		response.setReceivedAt()
 
-		//responseMiddleware
+		//ResponseMiddleware
 		for _, f := range c.afterResponse {
 			if err = f(response, c); err != nil {
 				return nil, err
@@ -164,12 +166,21 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	} else {
 		// request fail
 		finalErr := doErr
-		if checkErr != nil {
-			err = checkErr
+		if retryErr != nil {
+			finalErr = retryErr
 		}
-		return nil, fmt.Errorf("%s %s giving up after %d attempt(s): %w",
+		golog.Debugf("%s %s fail", req.GetMethod(), req.GetUrl().String())
+		return nil, fmt.Errorf("giving up connect to %s %s after %d attempt(s): %v",
 			req.RawRequest.Method, req.RawRequest.URL, req.attempt, finalErr)
 	}
+}
+
+func (c *Client) BeforeRequest(fn RequestMiddleware) {
+	c.extraBeforeRequest = append(c.extraBeforeRequest, fn)
+}
+
+func (c *Client) AfterResponse(fn ResponseMiddleware) {
+	c.afterResponse = append(c.afterResponse, fn)
 }
 
 func (c *Client) SetCloseConnection(close bool) *Client {
@@ -177,26 +188,20 @@ func (c *Client) SetCloseConnection(close bool) *Client {
 	return c
 }
 
-func (c *Client) verify() error {
-	if c == nil {
-		return errors.New("current client is nil")
-	}
-	return nil
-}
-
-func createClient(hc *http.Client, options *HTTPClientOptions) *Client {
+func createClient(options *ClientOptions, hc *http.Client) *Client {
 	c := &Client{
 		HTTPClient:    hc,
 		ClientOptions: options,
 		Debug:         options.Debug,
 	}
 
-	c.extraBeforeRequest = []requestMiddleware{}
-	c.defaultBeforeRequest = []requestMiddleware{
+	c.extraBeforeRequest = []RequestMiddleware{}
+	c.defaultBeforeRequest = []RequestMiddleware{
 		verifyRequestMethod,
 		createHTTPRequest,
+		readRequestBody,
 	}
-	c.afterResponse = []responseMiddleware{
+	c.afterResponse = []ResponseMiddleware{
 		readResponseBody,
 		verifyResponseBodyLength,
 		responseLogger,
@@ -204,39 +209,41 @@ func createClient(hc *http.Client, options *HTTPClientOptions) *Client {
 	return c
 }
 
-func createHttpClient(followRedirects bool, options *HTTPClientOptions, jar *cookiejar.Jar) (*http.Client, error) {
+func createHttpClient(followRedirects bool, jar *cookiejar.Jar) (*http.Client, error) {
 
-	tlsClientConfig, err := xtls.NewTLSClientConfig(options.TlsOptions)
+	httpClientOptions := GetHTTPOptions()
+
+	tlsClientConfig, err := xtls.NewTLSConfig(httpClientOptions.TlsOptions)
 	if err != nil {
 		return nil, err
 	}
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout: time.Duration(options.DialTimeout) * time.Second,
+			Timeout: time.Duration(httpClientOptions.DialTimeout) * time.Second,
 		}).DialContext,
-		MaxConnsPerHost:       options.MaxConnsPerHost,
-		ResponseHeaderTimeout: time.Duration(options.ReadTimeout) * time.Second,
-		IdleConnTimeout:       time.Duration(options.IdleConnTimeout) * time.Second,
-		TLSHandshakeTimeout:   time.Duration(options.TLSHandshakeTimeout) * time.Second,
-		MaxIdleConns:          options.MaxIdleConns,
+		MaxConnsPerHost:       httpClientOptions.MaxConnsPerHost,
+		ResponseHeaderTimeout: time.Duration(httpClientOptions.ReadTimeout) * time.Second,
+		IdleConnTimeout:       time.Duration(httpClientOptions.IdleConnTimeout) * time.Second,
+		TLSHandshakeTimeout:   time.Duration(httpClientOptions.TLSHandshakeTimeout) * time.Second,
+		MaxIdleConns:          httpClientOptions.MaxIdleConns,
 		TLSClientConfig:       tlsClientConfig,
-		DisableKeepAlives:     options.DisableKeepAlives,
+		DisableKeepAlives:     httpClientOptions.DisableKeepAlives,
 	}
-	if options.EnableHTTP2 {
+	if httpClientOptions.EnableHTTP2 {
 		err := http2.ConfigureTransport(transport)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if options.Proxy != "" {
-		proxy, err := url.Parse(options.Proxy)
+	if httpClientOptions.Proxy != "" {
+		proxy, err := url.Parse(httpClientOptions.Proxy)
 		if err != nil {
 			return nil, err
 		}
 		transport.Proxy = http.ProxyURL(proxy)
 	}
-	// 如果没有传cookiejar 就生成个默认的
+	// default cookiejar
 	if jar == nil {
 		cookieJar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 		if err != nil {
@@ -248,7 +255,7 @@ func createHttpClient(followRedirects bool, options *HTTPClientOptions, jar *coo
 	return &http.Client{
 		Jar:           jar,
 		Transport:     transport,
-		CheckRedirect: makeCheckRedirectFunc(followRedirects, options.MaxRedirect),
+		CheckRedirect: makeCheckRedirectFunc(followRedirects, httpClientOptions.MaxRedirect),
 	}, nil
 }
 

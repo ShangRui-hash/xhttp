@@ -35,9 +35,9 @@ type Request struct {
 
 func (r *Request) Clone() *Request {
 	return &Request{
-		RawRequest:  r.RawRequest.Clone(r.RawRequest.Context()),
-		Error:       r.Error,
-		Body:        r.Body,
+		RawRequest: r.RawRequest.Clone(r.RawRequest.Context()),
+		Error:      r.Error,
+		Body:       r.Body,
 	}
 }
 

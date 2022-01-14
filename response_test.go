@@ -2,24 +2,27 @@ package xhttp
 
 import (
 	"context"
-	"github.com/jweny/xhttp/testutils"
+	testhttp "github.com/jweny/xhttp/testutils/http"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
-	"time"
 )
 
 func TestNewResponse(t *testing.T) {
-	ts := testutils.CreateGetServer(t)
+	ts := testhttp.CreateGetServer(t)
 	defer ts.Close()
 
-	options := NewDefaultClientOptions()
+	options := DefaultClientOptions()
+	options.Cookies = map[string]string{
+		"key1":   "id1",
+		"value1": "id2",
+	}
 	ctx := context.Background()
 
 	client, err := NewClient(options, nil)
 	require.Nil(t, err, "could not new http client")
 
-	hr, _ := http.NewRequest("GET", ts.URL + "/set-retrycount-test", nil)
+	hr, _ := http.NewRequest("GET", ts.URL+"/", nil)
 	req := &Request{
 		RawRequest: hr,
 	}
@@ -27,12 +30,12 @@ func TestNewResponse(t *testing.T) {
 	require.Nil(t, err)
 	body := resp.GetBody()
 	require.Nil(t, err)
-	require.Equal(t, string(body), "TestClientRetry page")
-	duration, err := resp.GetLatency()
+	require.Equal(t, string(body), "TestGet: text response")
+	dutation, err := resp.GetLatency()
 	require.Nil(t, err)
 	flag := false
-	if duration > 5 *time.Second {
+	if dutation > 5 {
 		flag = true
 	}
-	require.Equal(t, flag, true, "response latency is wrong")
+	require.Equal(t, flag, true)
 }

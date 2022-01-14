@@ -6,19 +6,7 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 )
 
-type pkcS12Config struct {
-	Path     string
-	Password string
-}
-
-type ClientOptions struct {
-	PKCS12        pkcS12Config `json:"pkcs12" yaml:"pkcs12"`
-	TLSSkipVerify bool         `json:"-" yaml:"-"`
-	TLSMinVersion uint16       `json:"-" yaml:"-"`
-	TLSMaxVersion uint16       `json:"-" yaml:"-"`
-}
-
-func parsePKCS12FromFile(c pkcS12Config) (*tls.Certificate, error) {
+func parsePKCS12FromFile(c PKCS12Config) (*tls.Certificate, error) {
 	data, err := ioutil.ReadFile(c.Path)
 	if err != nil {
 		return nil, err
@@ -35,15 +23,7 @@ func parsePKCS12FromFile(c pkcS12Config) (*tls.Certificate, error) {
 	}, nil
 }
 
-func NewDefaultClientOptions() *ClientOptions {
-	return &ClientOptions{
-		TLSSkipVerify: true,
-		TLSMinVersion: tls.VersionSSL30,
-		TLSMaxVersion: tls.VersionTLS13,
-	}
-}
-
-func NewTLSClientConfig(options *ClientOptions) (*tls.Config, error) {
+func NewTLSConfig(options *ClientOptions) (*tls.Config, error) {
 	var err error
 	var cert *tls.Certificate
 

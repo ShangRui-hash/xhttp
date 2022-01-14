@@ -2,7 +2,7 @@ package xhttp
 
 import (
 	"context"
-	"github.com/jweny/xhttp/testutils"
+	testhttp "github.com/jweny/xhttp/testutils/http"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/publicsuffix"
 	"net/http"
@@ -13,16 +13,13 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	options := NewDefaultClientOptions()
-	client, err := NewClient(options, nil)
+	client, err := NewDefaultClient(nil)
 	require.Nil(t, err, "could not gen create HttpClient from options")
 	require.NotEmpty(t, client, "could not gen http.Client from default")
 }
 
 func TestClient_Do(t *testing.T) {
-	options := NewDefaultClientOptions()
-
-	client, err := NewClient(options, nil)
+	client, err := NewDefaultClient(nil)
 	require.Nil(t, err, "could not gen create HttpClient from options")
 	require.NotEmpty(t, client, "could not gen http.Client from default")
 
@@ -42,14 +39,14 @@ func TestClient_Do(t *testing.T) {
 	}
 	resp, err := client.Do(ctx, req)
 	require.Nil(t, err, "could not do request with context")
-	require.Equal(t, want, string(resp.Body), "could not get correct resp body")
+	require.Equal(t, want, string(resp.Body), "could not get correct resp Body")
 }
 
 func TestClient_Do_Redirect(t *testing.T) {
-	ts := testutils.CreateRedirectServer(t)
+	ts := testhttp.CreateRedirectServer(t)
 	defer ts.Close()
 
-	options := NewDefaultClientOptions()
+	options := GetHTTPOptions()
 	options.Headers = map[string]string{
 		"user-agent": "aaa",
 	}
@@ -57,14 +54,14 @@ func TestClient_Do_Redirect(t *testing.T) {
 	redirectClient, err := NewRedirectClient(options, nil)
 	require.Nil(t, err, "could not new redirect http client")
 	ctx := context.Background()
-	hr, _ := http.NewRequest("GET", ts.URL + "/redirect-1", nil)
+	hr, _ := http.NewRequest("GET", ts.URL+"/redirect-1", nil)
 	req := &Request{
 		RawRequest: hr,
 	}
 	resp, err := redirectClient.Do(ctx, req)
 	require.Nil(t, err, "could not do request with redirect")
 	body := resp.GetBody()
-	require.Equal(t, "<a href=\"/redirect-11\">Temporary Redirect</a>.\n\n", string(body), "could not use redirect client")
+	require.Equal(t, "<a href=\"/redirect-2\">Temporary Redirect</a>.\n\n", string(body), "could not use redirect client")
 
 	noRedirectClient, err := NewClient(options, nil)
 	require.Nil(t, err, "could not new no redirect http client")
@@ -76,10 +73,11 @@ func TestClient_Do_Redirect(t *testing.T) {
 }
 
 func TestClient_Do_Cookie(t *testing.T) {
-	ts := testutils.CreateRedirectServer(t)
+	ts := testhttp.CreateRedirectServer(t)
 	defer ts.Close()
 
-	options := NewDefaultClientOptions()
+	options := DefaultClientOptions()
+	//options.ClientOptions.Proxy = "http://127.0.0.1:8080"
 	options.Headers = map[string]string{
 		"user-agent": "aaa",
 	}
@@ -93,7 +91,7 @@ func TestClient_Do_Cookie(t *testing.T) {
 	require.Nil(t, err, "could not new http client")
 	ctx := context.Background()
 
-	hr, _ := http.NewRequest("GET", ts.URL + "/redirect-1", nil)
+	hr, _ := http.NewRequest("GET", ts.URL+"/redirect-1", nil)
 	req := &Request{
 		RawRequest: hr,
 	}
@@ -104,42 +102,41 @@ func TestClient_Do_Cookie(t *testing.T) {
 }
 
 func TestHeader_And_ResponseBodyLimit(t *testing.T) {
-	ts := testutils.CreateGetServer(t)
+	ts := testhttp.CreateGetServer(t)
 	defer ts.Close()
-	options := NewDefaultClientOptions()
+	options := DefaultClientOptions()
 	options.MaxRespBodySize = 100
 	options.Cookies = map[string]string{
-		"key1": "id1",
+		"key1":   "id1",
 		"value1": "id2",
 	}
 	client, err := NewClient(options, nil)
 	require.Nil(t, err, "could not new http client")
 	ctx := context.Background()
-	hr, _ := http.NewRequest("GET", ts.URL + "/", nil)
+	hr, _ := http.NewRequest("GET", ts.URL+"/", nil)
 	req := &Request{
 		RawRequest: hr,
 	}
-	req.SetHeader("user-agent", "aaa")
 	req.EnableTrace()
 	resp, err := client.Do(ctx, req)
 	require.Nil(t, err, "could not do request with client")
-	require.Equal(t, "aaa", resp.Request.GetHeaders().Get("user-agent"))
+	require.Equal(t, "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0", resp.Request.GetHeaders().Get("user-agent"))
 	require.Equal(t, "key1=id1; value1=id2", resp.Request.GetHeaders().Get("cookie"))
 }
 
 func TestAutoGzip(t *testing.T) {
-	ts := testutils.CreateGenServer(t)
+	ts := testhttp.CreateGenServer(t)
 	defer ts.Close()
 
-	options := NewDefaultClientOptions()
+	options := DefaultClientOptions()
 	client, err := NewClient(options, nil)
 	require.Nil(t, err, "could not new http client")
 	ctx := context.Background()
 
 	testcases := []struct{ url, want string }{
 		{ts.URL + "/gzip-test", "This is Gzip response testing"},
-		{ts.URL + "/gzip-test-gziped-empty-body", ""},
-		{ts.URL + "/gzip-test-no-gziped-body", ""},
+		{ts.URL + "/gzip-test-gziped-empty-Body", ""},
+		{ts.URL + "/gzip-test-no-gziped-Body", ""},
 	}
 	for _, tc := range testcases {
 		hr, _ := http.NewRequest("GET", tc.url, nil)
@@ -154,18 +151,16 @@ func TestAutoGzip(t *testing.T) {
 }
 
 func TestTransportCookie(t *testing.T) {
-	ts := testutils.CreateGetServer(t)
+	ts := testhttp.CreateGetServer(t)
 	defer ts.Close()
 	cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	options := NewDefaultClientOptions()
-	//options.Debug = true
 	ctx := context.Background()
 
 	for i := 0; i <= 5; i++ {
-		client, err := NewClient(options, cookieJar)
+		client, err := NewDefaultClient(cookieJar)
 		require.Nil(t, err, "could not new http client")
 
-		hr, _ := http.NewRequest("GET", ts.URL + "/transport-cookie", nil)
+		hr, _ := http.NewRequest("GET", ts.URL+"/transport-cookie", nil)
 		req := &Request{
 			RawRequest: hr,
 		}
@@ -176,60 +171,4 @@ func TestTransportCookie(t *testing.T) {
 	}
 	u, _ := url.Parse(ts.URL + "/transport-cookie")
 	require.Equal(t, "success5", cookieJar.Cookies(u)[0].Value, "could not transport cookie to multi client")
-}
-
-func TestRequest_Baidu(t *testing.T) {
-	options := NewDefaultClientOptions()
-	options.Debug = true
-	ctx := context.Background()
-	//设置headers
-	HEADER := map[string]string{
-		"accept": "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
-		"accept-encoding": "gzip, deflate, br",
-		"accept-language": "zh-CN,zh;q=0.9",
-		"referer": "https://item-paimai.taobao.com/pmp_item/609160317276.htm?s=pmp_detail&spm=a213x.7340941.2001.61.1aec2cb6RKlKoy",
-		"sec-fetch-mode": "cors",
-		"sec-fetch-site": "same-origin",
-		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
-		"x-requested-with": "XMLHttpRequest",
-	}
-	options.Headers = HEADER
-	// 如果要继承cookie，传入cookie jar；否则填nil。
-	cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-
-	// 创建client
-	client, _ := NewClient(options, cookieJar)
-	hr, _ := http.NewRequest("GET", "https://www.baidu.com", nil)
-	req := &Request{RawRequest: hr,}
-	resp, _ := client.Do(ctx, req)
-	println(string(resp.GetBody()))
-}
-
-func TestRequest_Gzip(t *testing.T) {
-	ts := testutils.CreateGenServer(t)
-	defer ts.Close()
-	options := NewDefaultClientOptions()
-	options.Debug = true
-	ctx := context.Background()
-	//设置headers
-	HEADER := map[string]string{
-		"accept": "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01",
-		//"accept-encoding": "gzip, deflate, br",
-		"accept-language": "zh-CN,zh;q=0.9",
-		"referer": "https://item-paimai.taobao.com/pmp_item/609160317276.htm?s=pmp_detail&spm=a213x.7340941.2001.61.1aec2cb6RKlKoy",
-		"sec-fetch-mode": "cors",
-		"sec-fetch-site": "same-origin",
-		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
-		"x-requested-with": "XMLHttpRequest",
-	}
-	options.Headers = HEADER
-	// 如果要继承cookie，传入cookie jar；否则填nil。
-	cookieJar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-
-	// 创建client
-	client, _ := NewClient(options, cookieJar)
-	hr, _ := http.NewRequest("GET", ts.URL + "/gzip-test", nil)
-	req := &Request{RawRequest: hr,}
-	resp, _ := client.Do(ctx, req)
-	println(string(resp.GetBody()))
 }
