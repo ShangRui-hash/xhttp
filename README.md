@@ -40,7 +40,7 @@ http client for scanner
 ## Install
 
 ```
-go get github.com/jweny/xhttp
+go get github.com/xiecat/xhttp
 ```
 
 ## Demo
